@@ -62,7 +62,7 @@ def get_args_parser():
     )
     parser.add_argument(
         "--batch_size",
-        default=64,
+        default=32,
         type=int,
         help="Batch size per GPU (effective batch size is batch_size * accum_iter * # gpus",
     )
@@ -111,7 +111,7 @@ def get_args_parser():
         type=int,
         help="Accumulate gradient iterations (for increasing the effective batch size under memory constraints)",
     )
-    parser.add_argument("--config", default="./mae/config/pretrain.yaml", type=str, help="Config file")
+    parser.add_argument("--config", default="config/pretrain.yaml", type=str, help="Config file")
     parser.add_argument("--name", default="", type=str, help="Name of wandb entry")
 
     # Model parameters
@@ -198,7 +198,7 @@ def get_args_parser():
     )
 
     parser.add_argument(
-        "--eval_path", default="/mnt/Data2/sli/scale-mae/mae/data/", type=str, help="dataset path"
+        "--eval_path", default="data/", type=str, help="dataset path"
     )
 
     # parser.add_argument(
@@ -249,7 +249,7 @@ def get_args_parser():
     )
     parser.set_defaults(no_autoresume=False)
     parser.add_argument("--seed", default=0, type=int)
-    # parser.add_argument("--resume", default="/mnt/Data2/sli/scale-mae/mae/scalemae-vitlarge-800.pth", help="resume from checkpoint")
+
     parser.add_argument("--resume", default="", help="resume from checkpoint")
 
     parser.add_argument(
