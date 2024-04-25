@@ -19,6 +19,7 @@ from .sentinel2 import build_sentinel_sampler
 from .ucmerced import UCMERCED_DATASET_STATS
 from .whurs import WHURS_DATASET_STATS
 from .xview import build_xview2_sampler
+from .pretrain import PretrainDataset
 
 dataset_stats_lookup = {
     "airound": AIROUND_DATASET_STATS,
@@ -65,6 +66,27 @@ def get_dataset_and_sampler(
             root=config["data"]["img_dir"],
             transform=transforms_init,
             is_valid_file=is_fmow_rgb,
+        )
+        sampler_train = torch.utils.data.DistributedSampler(
+            dataset, num_replicas=num_replicas, rank=rank, shuffle=True
+        )
+
+        if not linprobe_finetune:
+            return (
+                dataset,
+                sampler_train,
+                TransformCollateFn(transforms, args.base_resolution),
+            )
+        else:
+            return (
+                dataset,
+                sampler_train,
+                TransformCollateFnLabel(transforms, args.base_resolution),
+            )
+    elif dataset_type in ["pretrain"]:
+        dataset = PretrainDataset(
+            root=config["data"]["img_dir"],
+            transform=transforms_init
         )
         sampler_train = torch.utils.data.DistributedSampler(
             dataset, num_replicas=num_replicas, rank=rank, shuffle=True

@@ -9,12 +9,14 @@
 # BEiT: https://github.com/microsoft/unilm/tree/master/beit
 # --------------------------------------------------------
 
+from ast import Raise
 import builtins
 import datetime
 import os
 import time
 from collections import defaultdict, deque
 from pathlib import Path
+from uu import Error
 
 import torch
 import torch.distributed as dist
@@ -368,16 +370,50 @@ def save_model(
         )
 
 
+def load_pretrained_weights(model, pretrained_state_dict):
+    model_state_dict = model.state_dict()
+
+    for name, param in pretrained_state_dict.items():
+        if name in model_state_dict:
+            if param.size() != model_state_dict[name].size():
+                random_init = torch.randn_like(model_state_dict[name])
+                if len(param.size()) == 1:
+                    random_init[:param.size()[0]] = param
+                elif len(param.size()) == 2:
+                    random_init[:param.size()[0], :param.size()[1]] = param
+                elif len(param.size()) == 3:
+                    random_init[:param.size()[0], :param.size()[1], :param.size()[2]] = param
+                elif len(param.size()) == 4:
+                    random_init[:param.size()[0], :param.size()[1], :param.size()[2], :param.size()[3]] = param
+                else:
+                    raise ValueError('Model weights more than 4 dimension!')
+                
+                model_state_dict[name].copy_(random_init)
+                
+            else:
+                model_state_dict[name].copy_(param)
+
+    return model
+           
+            
 def load_model(args, model_without_ddp, optimizer, loss_scaler, strict=True):
-    if args.resume:
+    if args.resume:            
         if args.resume.startswith("https"):
             checkpoint = torch.hub.load_state_dict_from_url(
                 args.resume, map_location="cpu", check_hash=True
             )
         else:
             checkpoint = torch.load(args.resume, map_location="cpu")
-        model_without_ddp.load_state_dict(checkpoint["model"], strict=False)
-        print("Resume checkpoint %s" % args.resume)
+            # try to load pretrained wights with different input channels
+        try:
+            model_without_ddp.load_state_dict(checkpoint["model"], strict=False)
+            print("Resume checkpoint %s" % args.resume)
+        except RuntimeError:
+            print(f"Loading with mismatched pretrained weights!")
+            model_without_ddp = load_pretrained_weights(model_without_ddp, checkpoint['model'])
+            print("Resume checkpoint %s" % args.resume)
+            return
+
         if (
             "optimizer" in checkpoint
             and "epoch" in checkpoint

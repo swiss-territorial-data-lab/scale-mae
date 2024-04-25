@@ -62,10 +62,11 @@ def get_args_parser():
     )
     parser.add_argument(
         "--batch_size",
-        default=32,
+        default=64,
         type=int,
         help="Batch size per GPU (effective batch size is batch_size * accum_iter * # gpus",
     )
+    
     parser.add_argument(
         "--knn", default=20, type=int, help="Number of neighbors to use for KNN"
     )
@@ -82,11 +83,11 @@ def get_args_parser():
         action="store_true",
         help="Skip kNN evaluation (for debug purposes, primarily)",
     )
-    parser.set_defaults(skip_knn_eval=False)
+    parser.set_defaults(skip_knn_eval=True)
 
     parser.add_argument(
         "--print_freq",
-        default=20,
+        default=200,
         type=int,
         help="How often (iters) print results to wandb",
     )
@@ -110,7 +111,7 @@ def get_args_parser():
         type=int,
         help="Accumulate gradient iterations (for increasing the effective batch size under memory constraints)",
     )
-    parser.add_argument("--config", default="config.yaml", type=str, help="Config file")
+    parser.add_argument("--config", default="./mae/config/pretrain.yaml", type=str, help="Config file")
     parser.add_argument("--name", default="", type=str, help="Name of wandb entry")
 
     # Model parameters
@@ -197,15 +198,15 @@ def get_args_parser():
     )
 
     parser.add_argument(
-        "--eval_path", default="resisc45", type=str, help="dataset path"
+        "--eval_path", default="/mnt/Data2/sli/scale-mae/mae/data/", type=str, help="dataset path"
     )
 
-    parser.add_argument(
-        "--eval_train_fnames",
-        default="resisc45/train.txt",
-        type=str,
-        help="dataset path",
-    )
+    # parser.add_argument(
+    #     "--eval_train_fnames",
+    #     default="resisc45/train.txt",
+    #     type=str,
+    #     help="dataset path",
+    # )
     parser.add_argument(
         "--eval_val_fnames",
         default="data/resisc45/val.txt",
@@ -248,6 +249,7 @@ def get_args_parser():
     )
     parser.set_defaults(no_autoresume=False)
     parser.add_argument("--seed", default=0, type=int)
+    # parser.add_argument("--resume", default="/mnt/Data2/sli/scale-mae/mae/scalemae-vitlarge-800.pth", help="resume from checkpoint")
     parser.add_argument("--resume", default="", help="resume from checkpoint")
 
     parser.add_argument(
@@ -398,6 +400,7 @@ def main(args):
     seed = args.seed + misc.get_rank()
     torch.manual_seed(seed)
     np.random.seed(seed)
+    
 
     cudnn.benchmark = True
 
@@ -433,6 +436,7 @@ def main(args):
         WANDB_LOG_IMG_CONFIG.factor = config["data"]["vis_factor"]
 
         if config["data"]["type"] in ["fmow"]:
+            in_chans = 3
             # We read in an image from PIL and crop an area twice the size of input size
             # transforms_train crops it down to a the proper target_size
             transforms_init = tv_transforms.Compose(
@@ -446,7 +450,22 @@ def main(args):
                 ]
             )
             other_transforms = None
+        elif config["data"]["type"] in ["pretrain"]:
+            in_chans = 5
+            # transforms_train crops it down to a the proper target_size
+            transforms_init = tv_transforms.Compose(
+                [
+                    tv_transforms.ToTensor(),
+                    tv_transforms.RandomCrop(args.input_size * 2, pad_if_needed=True),
+                    tv_transforms.RandomHorizontalFlip(),
+                    tv_transforms.Normalize(
+                        mean=config["data"]["mean"], std=config["data"]["std"]
+                    ),
+                ]
+            )
+            other_transforms = None
         else:
+            in_chans = 3
             transforms_init = None
             other_transforms = AugmentationSequential(
                 K.RandomHorizontalFlip(),
@@ -564,6 +583,7 @@ def main(args):
     # handle fix size
 
     model = models_mae.__dict__[args.model](
+        in_chans=in_chans,
         img_size=args.input_size,
         norm_pix_loss=args.norm_pix_loss,
         decoder_aux_loss_layers=args.decoder_aux_loss_layers,
@@ -630,8 +650,8 @@ def main(args):
         tag = "encoder-decoder"
 
         wandb_args = dict(
-            project="multiscale_mae",
-            entity="bair-climate-initiative",
+            project="scalemae",
+            entity="heig-vd-geo",
             id=args.wandb_id,
             resume="allow",
             tags=[tag],

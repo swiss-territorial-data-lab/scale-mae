@@ -74,6 +74,7 @@ class MaskedAutoencoderViT(nn.Module):
         # --------------------------------------------------------------------------
         # MAE encoder specifics
         assert len(band_config) == 2
+        self.in_chans = in_chans
         self.use_l1_loss = use_l1_loss
         self.l1_loss_weight = l1_loss_weight
         self.band_config = band_config
@@ -125,10 +126,10 @@ class MaskedAutoencoderViT(nn.Module):
             )
         self.fpn = FPNHead(decoder_embed_dim, share_weights=progressive)
         if independent_fcn_head:
-            self.fcn_high = FCNHead(decoder_embed_dim, fcn_dim, fcn_layers, 3)
-            self.fcn_low = FCNHead(decoder_embed_dim, fcn_dim, fcn_layers, 3)
+            self.fcn_high = FCNHead(decoder_embed_dim, fcn_dim, fcn_layers, in_chans)
+            self.fcn_low = FCNHead(decoder_embed_dim, fcn_dim, fcn_layers, in_chans)
         else:
-            self.fcn = FCNHead(decoder_embed_dim, fcn_dim, fcn_layers, 3)
+            self.fcn = FCNHead(decoder_embed_dim, fcn_dim, fcn_layers, in_chans)
         # Depending on the mode of decoding we are using, the decoder architecture is different
         if self.multiscale:
             self.decoder_blocks = nn.ModuleList(
@@ -198,30 +199,30 @@ class MaskedAutoencoderViT(nn.Module):
 
     def patchify(self, imgs):
         """
-        imgs: (N, 3, H, W)
-        x: (N, L, patch_size**2 *3)
+        imgs: (N, C, H, W)
+        x: (N, L, patch_size**2 *C)
         """
         p = self.patch_embed.patch_size[0]
         assert imgs.shape[2] == imgs.shape[3] and imgs.shape[2] % p == 0
 
         h = w = imgs.shape[2] // p
-        x = imgs.reshape(shape=(imgs.shape[0], 3, h, p, w, p))
+        x = imgs.reshape(shape=(imgs.shape[0], self.in_chans, h, p, w, p))
         x = torch.einsum("nchpwq->nhwpqc", x)
-        x = x.reshape(shape=(imgs.shape[0], h * w, p**2 * 3))
+        x = x.reshape(shape=(imgs.shape[0], h * w, p**2 * self.in_chans))
         return x
 
     def unpatchify(self, x):
         """
-        x: (N, L, patch_size**2 *3)
-        imgs: (N, 3, H, W)
+        x: (N, L, patch_size**2 *C)
+        imgs: (N, C, H, W)
         """
         p = self.patch_embed.patch_size[0]
         h = w = int(x.shape[1] ** 0.5)
         assert h * w == x.shape[1]
 
-        x = x.reshape(shape=(x.shape[0], h, w, p, p, 3))
+        x = x.reshape(shape=(x.shape[0], h, w, p, p, self.in_chans))
         x = torch.einsum("nhwpqc->nchpwq", x)
-        imgs = x.reshape(shape=(x.shape[0], 3, h * p, h * p))
+        imgs = x.reshape(shape=(x.shape[0], self.in_chans, h * p, h * p))
         return imgs
 
     def upsample_decoder(self, x, target_dim):
@@ -540,8 +541,8 @@ class MaskedAutoencoderViT(nn.Module):
 
     def forward_loss(self, imgs, pred, mask, target_dim, ids):
         """
-        imgs: [N, 3, H, W]
-        pred: [N_decoder_layers, L,N , p*p*3]
+        imgs: [N, C, H, W]
+        pred: [N_decoder_layers, L,N , p*p*C]
         mask: [N, L], 0 is keep, 1 is remove,
         """
         p = self.patch_embed.patch_size[0]

@@ -98,7 +98,7 @@ class FCNHead(nn.Module):
             nn.GELU(),
             nn.Conv2d(hidden_dim // 4, hidden_dim // 2, 1, padding=0),
             nn.GELU(),
-            nn.ConvTranspose2d(hidden_dim // 2, 3, kernel_size=2, stride=2),
+            nn.ConvTranspose2d(hidden_dim // 2, target_dim, kernel_size=2, stride=2),
         )
 
     def forward(self, xp):

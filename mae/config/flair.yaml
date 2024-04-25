@@ -1,0 +1,10 @@
+data:
+  type: flair
+  # size: 224
+  oversample: 1.0
+  img_dir: '/mnt/Data2/sli/dataset/flair/'
+  mean: [0.44618431, 0.46255686, 0.42858039, 0.40023922, 0.06573725]
+  std: [0.13931373, 0.12604314, 0.12070196, 0.10701961, 0.06233725]
+  vis_factor: 1.0
+  base_resolution: 2.5
+  

@@ -80,6 +80,7 @@ def train_one_epoch(
             wandb_dump_input_output(
                 x[0],
                 y,
+                x[0].shape[-1],
                 epoch,
                 f"target-size:{target_size}-output_size:{fix_decoding_size}",
             )

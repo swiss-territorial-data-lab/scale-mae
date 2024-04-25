@@ -22,16 +22,16 @@ class WANDB_LOG_IMG_CONFIG:
     factor = 1.0
 
 
-def equalize(x):
+def equalize(x, in_chans):
     x = x * WANDB_LOG_IMG_CONFIG.std.reshape(
-        1, 1, 3
-    ) + WANDB_LOG_IMG_CONFIG.mean.reshape(1, 1, 3)
+        1, 1, in_chans
+    ) + WANDB_LOG_IMG_CONFIG.mean.reshape(1, 1, in_chans)
     if x.max() > 2.0:
         x /= WANDB_LOG_IMG_CONFIG.factor
     return x
 
 
-def wandb_dump_input_output(x, ys, epoch=0, texts=""):
+def wandb_dump_input_output(x, ys, in_chans, epoch=0, texts=""):
     """
     x: H X W X C
     y: H X W X C
@@ -40,16 +40,28 @@ def wandb_dump_input_output(x, ys, epoch=0, texts=""):
         n_imgs = 1 + len(ys)
         x = x.numpy()
         ys = [y.numpy().astype(float) for y in ys]
-        ys = [equalize(y) for y in ys]
-        x = equalize(x)
-        fig, axes = plt.subplots(1, n_imgs, figsize=(5 * n_imgs, 5))
+        ys = [equalize(y, in_chans) for y in ys]
+        x = equalize(x, in_chans)
+        fig, axes = plt.subplots(3, n_imgs, figsize=(5 * n_imgs, 5))
         if texts:
             fig.suptitle(texts)
-        axes[0].imshow(x)
-        axes[0].title.set_text(f"({x.shape[0]}, {x.shape[1]})")
-        for idx, y in enumerate(ys):
-            axes[1 + idx].imshow(y)
-            axes[1 + idx].title.set_text(f"({y.shape[0]}, {y.shape[1]})")
+        if in_chans == 5:
+            axes[0, 0].imshow(x[:, :, [0, 1, 2]])
+            axes[1, 0].imshow(x[:, :, [3, 0, 1]])
+            axes[2, 0].imshow(x[:, :, 4])
+            axes[0, 0].title.set_text(f"({x.shape[0]}, {x.shape[1]})")
+            for idx, y in enumerate(ys):
+                axes[0, 1 + idx].title.set_text(f"({y.shape[0]}, {y.shape[1]})")
+                axes[0, 1 + idx].imshow(y[:, :, [0, 1, 2]])
+                axes[1, 1 + idx].imshow(y[:, :, [3, 0, 1]])
+                axes[2, 1 + idx].imshow(y[:, :, 4])
+        elif in_chans == 3:
+            axes[0].imshow(x)
+            axes[0].title.set_text(f"({x.shape[0]}, {x.shape[1]})")
+            for idx, y in enumerate(ys):
+                axes[1 + idx].title.set_text(f"({y.shape[0]}, {y.shape[1]})")
+                axes[1 + idx].imshow(y)
+            
         wandb.log({"vis": wandb.Image(fig), "epoch": epoch})
         plt.close(fig)
 
